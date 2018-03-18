@@ -58,6 +58,7 @@ Server::Server(QWidget *parent)
     connect(tcpServer, SIGNAL(newConnection()),
             this, SLOT(sendWalls()));
     
+    
     auto buttonLayout = new QHBoxLayout;
     buttonLayout->addStretch(1);
     buttonLayout->addWidget(quitButton);
@@ -84,7 +85,7 @@ Server::Server(QWidget *parent)
 
     setWindowTitle(QGuiApplication::applicationDisplayName());
 }
-
+    
 void Server::sessionOpened(){
     if (networkSession) {
         QNetworkConfiguration config = networkSession->configuration();
@@ -106,7 +107,7 @@ void Server::sessionOpened(){
                               tr("Unable to start the server: %1.")
                               .arg(tcpServer->errorString()));
         close();
-        return; 
+        return;
     }
     
     QString ipAddress;
@@ -126,27 +127,32 @@ void Server::sessionOpened(){
 }
 
 void Server::sendWalls(){
+    qDebug() << tcpServer->hasPendingConnections();
+    QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
+    qDebug() << clientConnection->peerAddress() << clientConnection->peerPort();
+    if (users.contains(clientConnection->peerAddress()) &&
+        sockPorts.contains(clientConnection->peerPort()))
+    {
+        qDebug() << clientConnection->peerAddress() << " " << clientConnection->peerPort();
+        connect(clientConnection, SIGNAL(readyRead()), this, SLOT(readData()));
+        return;
+    }
+    else {
+        connect(clientConnection, SIGNAL(readyRead()), this, SLOT(readIp()));
+        qDebug() << "after connect " << clientConnection->state();
+    }
     
     QByteArray block;
+    
+    users.push_back(clientConnection->peerAddress());
+    sockPorts.push_back(clientConnection->peerPort());
     QDataStream out(&block, QIODevice::WriteOnly);
-    out.setVersion(QDataStream::Qt_4_0);
-    
+     
+    out.setVersion(QDataStream::Qt_4_0);        
     out << walls;
-    
-    QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
-    
-    users.push_back(clientConnection);
-    
-    connect(clientConnection, SIGNAL(disconnected()),
-            clientConnection, SLOT(deleteLater()));
-    
-    clientConnection->write(block);
-    clientConnection->disconnectFromHost();
-    
-    /*disconnect(tcpServer, SIGNAL(newConnection()),
-               this, SLOT(sendWalls()));
-    connect(tcpServer, SIGNAL(newConnection()),
-            this, SLOT(readData()));*/
+    //qDebug() << walls;
+    clientConnection->write(block); 
+    //qDebug() << "status after walls " << clientConnection->state();
 }
 
 Server::~Server()
@@ -157,18 +163,62 @@ Server::~Server()
 
 void Server::readData()
 {   
-    QTcpSocket *clientConnection = tcpServer->nextPendingConnection();
-    in.setDevice(clientConnection);
-    
-    in.startTransaction();
+    qDebug() << "readingData";
+    QTcpSocket* a = (QTcpSocket*)sender();
+    //qDebug() << "peeraddress " << a->peerAddress() << " " << a->peerPort();
+    //QByteArray block;`
+    QDataStream in(a);
     in.setVersion(QDataStream::Qt_4_0);
     
     QString data;
-    
     in >> data;
+    quint16 p = a->peerPort();
+    newBall = a->peerAddress().toString().remove(0,7) + "/" + QString::number(a->peerPort()) + "/b." + data;
+    qDebug() << newBall;
+    QTimer::singleShot(100, this, SLOT(sendBalls()));
+}
+
+void Server::sendBalls(){ 
+    QByteArray block;   
+    QTcpSocket* client = new QTcpSocket(this);
+    for (int i = 0; i < IPs.size(); i++)
+    {
+        if (IPs[i] == newBall.split("/")[0] && ports[i] == newBall.split("/")[1])
+            continue;
+        
+        client->connectToHost(QHostAddress(IPs[i]),ports[i]);
+
+        qDebug() << "IM CONNECTING TO SEND A BALL " + newBall
+                 << "TO IP " << IPs[i] << " " << ports[i];
+    
+        QDataStream out(&block, QIODevice::WriteOnly);
+        out.setVersion(QDataStream::Qt_4_0);        
+            
+        out << newBall.split("/")[2];
+        
+        qDebug() << client->write(block);
+        client->disconnectFromHost();
+    }
+    
+}
+
+void Server::readIp(){
+    QTcpSocket *clientConnection = (QTcpSocket*)sender();
+    QDataStream in(clientConnection);
+    in.setVersion(QDataStream::Qt_4_0);
+    
+    QString data;
+    in >> data;
+    
     qDebug() << data;
+    IPs.push_back(data.split(":")[0]);
+    ports.push_back(data.split(":")[1].toInt());
     
-    if(!in.commitTransaction())
-        return;
+    qDebug() << data.split(":")[1].toInt();
     
+    qDebug() << "status after reading ip " << clientConnection->state();
+    clientConnection->disconnectFromHost();
+}
+
+void Server::sendBallsData(){
 }

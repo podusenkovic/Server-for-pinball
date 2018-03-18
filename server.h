@@ -22,7 +22,10 @@ private slots:
     void sessionOpened();
     void sendWalls();
     void readData();
-
+    void sendBalls();
+    void readIp();
+    //void myReadyRead();
+    void sendBallsData();
 private:
     QLabel *statusLabel = nullptr;
     QTcpServer *tcpServer = nullptr;
@@ -31,8 +34,12 @@ private:
     QNetworkSession *networkSession = nullptr;
     QDataStream in;
     
-    QVector<QTcpSocket*> users;
-    
+    QVector<QHostAddress> users;
+    QVector<QTcpSocket*> pUsers;
+    QVector<quint16> ports;
+    QVector<quint16> sockPorts; 
+    QVector<QString> IPs;
+    QString newBall;
 };
 
 #endif // SERVER_H
