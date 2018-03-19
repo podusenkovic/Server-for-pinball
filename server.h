@@ -26,6 +26,7 @@ private slots:
     void readIp();
     //void myReadyRead();
     void sendBallsData();
+    //void pushWalls();
 private:
     QLabel *statusLabel = nullptr;
     QTcpServer *tcpServer = nullptr;
@@ -39,6 +40,7 @@ private:
     QVector<quint16> ports;
     QVector<quint16> sockPorts; 
     QVector<QString> IPs;
+    QVector<int> IDs;
     QString newBall;
 };
 
